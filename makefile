@@ -8,7 +8,7 @@ CFLAGS=-g -I $(IDIR) -Werror -Wall -Wextra -std=c99 -pedantic
 
 ODIR=build
 
-DEPS = $(IDIR)/shs1.h
+DEPS = $(IDIR)/box-stream.h
 
 OBJ = $(ODIR)/box-stream.o $(ODIR)/test.o
 
