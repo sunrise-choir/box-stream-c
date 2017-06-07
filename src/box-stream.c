@@ -2,11 +2,15 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <sodium.h>
 
+// TODO find better terminology: currently, "header" is ambiguous (could be either header_mac, length and packet_mac, or just length and packet_mac)
+
 static uint8_t zeros[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
 
+// TODO does this really make the code more clear?
 typedef struct {
   uint8_t header_mac[crypto_secretbox_MACBYTES];
   uint16_t length; // at most BS_MAX_PACKET_SIZE
@@ -15,7 +19,7 @@ typedef struct {
 
 // TODO could use a nonce_decrement function to only need one nonce
 typedef struct {
-  const uint8_t *encryption_key; // length: crypto_secretbox_KEYBYTES
+  const uint8_t *encryption_key; // length: crypto_secretbox_KEYBYTES TODO array syntax?
   uint8_t nonce1[crypto_secretbox_NONCEBYTES];
   uint8_t nonce2[crypto_secretbox_NONCEBYTES];
 } BS_Boxer;
@@ -57,14 +61,39 @@ void final_header(
   crypto_secretbox_easy(out, zeros, sizeof(zeros), state->nonce1, state->encryption_key);
 }
 
-// // takes an encrypted cyphertext and writes the decrypted plaintext into `out`
-// // returns false on invalid input, in which case the content of `out` is unspecified
-// bool decrypt_packet(
-//   uint8_t *out, // length: packet_len - BS_HEADER_SIZE
-//   const uint8_t *cypher_packet, // the packet to decrypt
-//   uint16_t packet_len, // length of the packet - at least BS_HEADER_SIZE, at most BS_MAX_PACKET_SIZE + BS_HEADER_SIZE
-//   BS_Boxer *state
-// )
-// {
-//
-// }
+typedef struct {
+  const uint8_t *decryption_key; // length: crypto_secretbox_KEYBYTES TODO array syntax?
+  uint8_t nonce[crypto_secretbox_NONCEBYTES];
+} BS_Unboxer;
+
+// takes an encrypted cyphertext and writes the decrypted plaintext into `out`
+// returns false on invalid input, in which case the content of `out` is unspecified
+bool decrypt_packet(
+  uint8_t *out, // length: packet_len - BS_HEADER_SIZE
+  const uint8_t *cypher_packet, // the packet to decrypt (header-mac followed by box(header) followed by box(plantext))
+  // uint16_t packet_len, // length of the packet - at least BS_HEADER_SIZE, at most BS_MAX_PACKET_SIZE + BS_HEADER_SIZE TODO not needed?
+  BS_Unboxer *state
+)
+{
+  uint8_t header[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
+  if (crypto_secretbox_open_easy(header, cypher_packet, BS_HEADER_SIZE, state->nonce, state->decryption_key) == -1) {
+    return false;
+  }
+
+  // check for final header
+  if (memcmp(header, zeros, sizeof(header)) == 0) {
+    // TODO handle final header, probably by changing return type to an enum and returning here
+  }
+
+  uint16_t packet_length = ntohs(*header);
+
+  nonce_inc(state->nonce);
+
+  // TODO could a malicious packet give a too large length and then cause reads from behind cypher_packet? How can this be preventen? Pass in expected packet_len? Require cypher_packet to always be long enough?
+  if (crypto_secretbox_open_detached(out, cypher_packet + BS_HEADER_SIZE, header + sizeof(uint16_t), packet_length, state->nonce, state->decryption_key) == -1) {
+    return false;
+  }
+
+  nonce_inc(state->nonce);
+  return true;
+}
