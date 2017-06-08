@@ -6,94 +6,107 @@
 #include <arpa/inet.h>
 #include <sodium.h>
 
-// TODO find better terminology: currently, "header" is ambiguous (could be either header_mac, length and packet_mac, or just length and packet_mac)
-
 static uint8_t zeros[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
-
-// TODO does this really make the code more clear?
-typedef struct {
-  uint8_t header_mac[crypto_secretbox_MACBYTES];
-  uint16_t length; // at most BS_MAX_PACKET_SIZE
-  uint8_t packet_mac[crypto_secretbox_MACBYTES];
-} BS_Header;
-
-// TODO could use a nonce_decrement function to only need one nonce
-typedef struct {
-  const uint8_t *encryption_key; // length: crypto_secretbox_KEYBYTES TODO array syntax?
-  uint8_t nonce1[crypto_secretbox_NONCEBYTES];
-  uint8_t nonce2[crypto_secretbox_NONCEBYTES];
-} BS_Boxer;
 
 // wrapping in-place increment of a nonce
 static void nonce_inc(uint8_t *nonce)
 {
-  sodium_increment(nonce, crypto_secretbox_NONCEBYTES);
+  uint8_t i = crypto_secretbox_NONCEBYTES - 1;
+
+  while (i != UINT8_MAX) {
+    nonce[i] += 1;
+    if (nonce[i] == 0) {
+      i--;
+    } else {
+      break;
+    }
+  }
 }
 
-// writes header and payload for a given plaintext packet into `out`
+// wrapping in-place decrement of a nonce
+static void nonce_dec(uint8_t *nonce)
+{
+  uint8_t i = crypto_secretbox_NONCEBYTES - 1;
+
+  while (i != UINT8_MAX) {
+    nonce[i] -= 1;
+    if (nonce[i] == UINT8_MAX) {
+      i--;
+    } else {
+      break;
+    }
+  }
+}
+
+// indices into an encrypted packet
+#define PACKET_LEN crypto_secretbox_MACBYTES
+#define PACKET_MAC PACKET_LEN + sizeof(uint16_t)
+#define PACKET_CONTENT PACKET_MAC + crypto_secretbox_MACBYTES
+
 void encrypt_packet(
-  uint8_t *out, // length: BS_HEADER_SIZE + packet_len
-  const uint8_t *plain_packet, // the packet to encrypt
-  uint16_t packet_len, // length of the packet - at most BS_MAX_PACKET_SIZE
-  BS_Boxer *state
+  uint8_t *out,
+  const uint8_t *plain_packet,
+  uint16_t packet_len,
+  const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
-  BS_Header *header = (BS_Header *)out;
+  nonce_inc(nonce);
 
-  nonce_inc(state->nonce2);
+  crypto_secretbox_easy(out + PACKET_MAC, plain_packet, packet_len, nonce, encryption_key);
+  out[PACKET_LEN] = htons(packet_len);
 
-  crypto_secretbox_easy(header->packet_mac, plain_packet, packet_len, state->nonce2, state->encryption_key);
-  header->length = htons(packet_len);
+  nonce_dec(nonce);
 
-  crypto_secretbox_easy((uint8_t *)header, (uint8_t *)&header->length, sizeof(uint16_t) + crypto_secretbox_MACBYTES, state->nonce1, state->encryption_key);
+  crypto_secretbox_easy(out, out + PACKET_LEN, sizeof(uint16_t) + crypto_secretbox_MACBYTES, nonce, encryption_key);
 
-  nonce_inc(state->nonce2);
-  nonce_inc(state->nonce1);
-  nonce_inc(state->nonce1);
+  nonce_inc(nonce);
+  nonce_inc(nonce);
 }
 
-// writes the final header corresponding to the secret key and current nonce into out
 void final_header(
   uint8_t out[BS_HEADER_SIZE],
-  BS_Boxer *state
+  const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
-  crypto_secretbox_easy(out, zeros, sizeof(zeros), state->nonce1, state->encryption_key);
+  crypto_secretbox_easy(out, zeros, sizeof(zeros), nonce, encryption_key);
 }
 
-typedef struct {
-  const uint8_t *decryption_key; // length: crypto_secretbox_KEYBYTES TODO array syntax?
-  uint8_t nonce[crypto_secretbox_NONCEBYTES];
-} BS_Unboxer;
-
-// takes an encrypted cyphertext and writes the decrypted plaintext into `out`
-// returns false on invalid input, in which case the content of `out` is unspecified
-bool decrypt_packet(
-  uint8_t *out, // length: packet_len - BS_HEADER_SIZE
-  const uint8_t *cypher_packet, // the packet to decrypt (header-mac followed by box(header) followed by box(plantext))
-  // uint16_t packet_len, // length of the packet - at least BS_HEADER_SIZE, at most BS_MAX_PACKET_SIZE + BS_HEADER_SIZE TODO not needed?
-  BS_Unboxer *state
+BS_Header_Decrypt decrypt_header(
+  uint8_t out[sizeof(uint16_t) + crypto_secretbox_MACBYTES],
+  uint8_t cypher_header[BS_HEADER_SIZE],
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
-  uint8_t header[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
-  if (crypto_secretbox_open_easy(header, cypher_packet, BS_HEADER_SIZE, state->nonce, state->decryption_key) == -1) {
+  if (crypto_secretbox_open_easy(out, cypher_header, BS_HEADER_SIZE, nonce, decryption_key) == -1) {
+    return BS_INVALID;
+  }
+
+  if (memcmp(out, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0) {
+    return BS_FINAL;
+  }
+
+  *out = ntohs(*out);
+  return BS_DEFAULT;
+}
+
+bool decrypt_packet(
+  uint8_t *out,
+  const uint8_t *cypher_packet,
+  uint16_t packet_len,
+  const uint8_t mac[crypto_secretbox_MACBYTES],
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
+)
+{
+  nonce_inc(nonce);
+
+  if (crypto_secretbox_open_detached(out, cypher_packet, mac, packet_len, nonce, decryption_key) == -1) {
     return false;
   }
 
-  // check for final header
-  if (memcmp(header, zeros, sizeof(header)) == 0) {
-    // TODO handle final header, probably by changing return type to an enum and returning here
-  }
-
-  uint16_t packet_length = ntohs(*header);
-
-  nonce_inc(state->nonce);
-
-  // TODO could a malicious packet give a too large length and then cause reads from behind cypher_packet? How can this be preventen? Pass in expected packet_len? Require cypher_packet to always be long enough?
-  if (crypto_secretbox_open_detached(out, cypher_packet + BS_HEADER_SIZE, header + sizeof(uint16_t), packet_length, state->nonce, state->decryption_key) == -1) {
-    return false;
-  }
-
-  nonce_inc(state->nonce);
+  nonce_inc(nonce);
   return true;
 }
