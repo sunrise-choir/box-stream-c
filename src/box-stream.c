@@ -52,7 +52,7 @@ static void nonce_dec(uint8_t *nonce)
 #define PACKET_MAC PACKET_LEN + sizeof(uint16_t)
 #define PACKET_CONTENT PACKET_MAC + crypto_secretbox_MACBYTES
 
-void encrypt_packet(
+void bs_encrypt_packet(
   uint8_t *out,
   const uint8_t *plain_packet,
   uint16_t packet_len,
@@ -74,7 +74,7 @@ void encrypt_packet(
   nonce_inc(nonce);
 }
 
-void final_header(
+void bs_final_header(
   uint8_t out[BS_CYPHER_HEADER_SIZE],
   const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
@@ -83,12 +83,12 @@ void final_header(
   crypto_secretbox_easy(out, zeros, sizeof(zeros), nonce, encryption_key);
 }
 
-bool is_final_header(const BS_Plain_Header *plain_header)
+bool bs_is_final_header(const BS_Plain_Header *plain_header)
 {
   return memcmp(plain_header, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0;
 }
 
-bool decrypt_header(
+bool bs_decrypt_header(
   BS_Plain_Header *plain_header,
   const uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
@@ -103,7 +103,7 @@ bool decrypt_header(
   return true;
 }
 
-bool decrypt_header_inplace(
+bool bs_decrypt_header_inplace(
   uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
@@ -118,7 +118,7 @@ bool decrypt_header_inplace(
   return true;
 }
 
-bool decrypt_packet(
+bool bs_decrypt_packet(
   uint8_t *out,
   const uint8_t *cypher_packet,
   const BS_Plain_Header *plain_header,
@@ -136,7 +136,7 @@ bool decrypt_packet(
   return true;
 }
 
-bool decrypt_packet_inplace(
+bool bs_decrypt_packet_inplace(
   uint8_t *cypher_packet,
   const BS_Plain_Header *plain_header,
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
@@ -153,5 +153,4 @@ bool decrypt_packet_inplace(
   return true;
 }
 
-// TODO prefix names with "bs_"
 // TODO remove prints

@@ -9,7 +9,7 @@
 #define BS_MAX_PACKET_SIZE 4096
 
 // Writes the encrypted header and payload for a given plaintext packet into `out`.
-void encrypt_packet(
+void bs_encrypt_packet(
   uint8_t *out, // length: BS_CYPHER_HEADER_SIZE + packet_len
   const uint8_t *plain_packet, // the packet to encrypt
   uint16_t packet_len, // length of the packet - at most BS_MAX_PACKET_SIZE
@@ -18,7 +18,7 @@ void encrypt_packet(
 );
 
 // Writes the final header that signals the end of the box stream into `out`.
-void final_header(
+void bs_final_header(
   uint8_t out[BS_CYPHER_HEADER_SIZE],
   const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
@@ -33,20 +33,20 @@ typedef struct {
 } BS_Plain_Header;
 
 // Returns whether the given header signals the end of the stream.
-bool is_final_header(const BS_Plain_Header *plain_header);
+bool bs_is_final_header(const BS_Plain_Header *plain_header);
 
 // If this returns true, it decrypts a received header into `out`. Returns false
 // if the cyper_header was invalid.
-bool decrypt_header(
+bool bs_decrypt_header(
   BS_Plain_Header *out,
   const uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 );
 
-// Same as `decrypt_header`, but writes the result into `cypher_header`. If this
+// Same as `bs_decrypt_header`, but writes the result into `cypher_header`. If this
 // returns true, `cypher_header` can be safely cast to a `(BS_Plain_Header*)`.
-bool decrypt_header_inplace(
+bool bs_decrypt_header_inplace(
   uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
@@ -55,7 +55,7 @@ bool decrypt_header_inplace(
 // Decrypts a received packet, given a pointer to the corresponding
 // plain_header, and writes the result into `out`. Returns false on invalid
 // input, in which case the content of `out` is unspecified.
-bool decrypt_packet(
+bool bs_decrypt_packet(
   uint8_t *out, // length: cypher_packet->packet_len
   const uint8_t *cypher_packet, // the packet to decrypt
   const BS_Plain_Header *plain_header,
@@ -63,8 +63,8 @@ bool decrypt_packet(
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 );
 
-// Same as `decrypt_packet`, but writes the result into `cypher_packet`.
-bool decrypt_packet_inplace(
+// Same as `bs_decrypt_packet`, but writes the result into `cypher_packet`.
+bool bs_decrypt_packet_inplace(
   uint8_t *cypher_packet,
   const BS_Plain_Header *plain_header,
   const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
