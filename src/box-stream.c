@@ -8,6 +8,15 @@
 
 static uint8_t zeros[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
 
+// static void print_hex(void *mem, int size) {
+//   int i;
+//   unsigned char *p = (unsigned char *)mem;
+//   for (i=0;i<size;i++) {
+//     printf("%02x ", p[i]);
+//   }
+//   printf("\n");
+// }
+
 // wrapping in-place increment of a nonce
 static void nonce_inc(uint8_t *nonce)
 {
@@ -54,7 +63,8 @@ void encrypt_packet(
   nonce_inc(nonce);
 
   crypto_secretbox_easy(out + PACKET_MAC, plain_packet, packet_len, nonce, encryption_key);
-  out[PACKET_LEN] = htons(packet_len);
+  uint16_t network_packet_len = htons(packet_len);
+  memcpy(out + PACKET_LEN, &network_packet_len, sizeof(network_packet_len));
 
   nonce_dec(nonce);
 
@@ -74,24 +84,26 @@ void final_header(
 }
 
 BS_Header_Decrypt decrypt_header(
-  uint8_t out[sizeof(uint16_t) + crypto_secretbox_MACBYTES],
-  uint8_t cypher_header[BS_HEADER_SIZE],
+  uint8_t plain_header[BS_PLAIN_HEADER_SIZE],
+  const uint8_t cypher_header[BS_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
-  if (crypto_secretbox_open_easy(out, cypher_header, BS_HEADER_SIZE, nonce, decryption_key) == -1) {
+  if (crypto_secretbox_open_easy(plain_header, cypher_header, BS_HEADER_SIZE, nonce, decryption_key) == -1) {
     return BS_INVALID;
   }
 
-  if (memcmp(out, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0) {
+  // TODO move this into a helper function, let decrypt_header simply return a bool
+  if (memcmp(plain_header, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0) {
     return BS_FINAL;
   }
 
-  *out = ntohs(*out);
+  *plain_header = ntohs(*(uint16_t *)plain_header);
   return BS_DEFAULT;
 }
 
+// TODO change this to an api that consumes exactly what decrypt_header returns
 bool decrypt_packet(
   uint8_t *out,
   const uint8_t *cypher_packet,
@@ -110,3 +122,6 @@ bool decrypt_packet(
   nonce_inc(nonce);
   return true;
 }
+
+// TODO prefix names with "bs_"
+// TODO remove prints
