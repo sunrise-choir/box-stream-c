@@ -75,7 +75,7 @@ void encrypt_packet(
 }
 
 void final_header(
-  uint8_t out[BS_HEADER_SIZE],
+  uint8_t out[BS_CYPHER_HEADER_SIZE],
   const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
@@ -83,39 +83,37 @@ void final_header(
   crypto_secretbox_easy(out, zeros, sizeof(zeros), nonce, encryption_key);
 }
 
-BS_Header_Decrypt decrypt_header(
-  uint8_t plain_header[BS_PLAIN_HEADER_SIZE],
-  const uint8_t cypher_header[BS_HEADER_SIZE],
+bool is_final_header(const BS_Plain_Header *plain_header)
+{
+  return memcmp(plain_header, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0;
+}
+
+bool decrypt_header(
+  BS_Plain_Header *plain_header,
+  const uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
-  if (crypto_secretbox_open_easy(plain_header, cypher_header, BS_HEADER_SIZE, nonce, decryption_key) == -1) {
-    return BS_INVALID;
+  if (crypto_secretbox_open_easy((uint8_t *)plain_header, cypher_header, BS_CYPHER_HEADER_SIZE, nonce, decryption_key) == -1) {
+    return false;
   }
 
-  // TODO move this into a helper function, let decrypt_header simply return a bool
-  if (memcmp(plain_header, zeros, sizeof(uint16_t) + crypto_secretbox_MACBYTES) == 0) {
-    return BS_FINAL;
-  }
-
-  *plain_header = ntohs(*(uint16_t *)plain_header);
-  return BS_DEFAULT;
+  plain_header->packet_len = ntohs(*(uint16_t *)plain_header);
+  return true;
 }
 
-// TODO change this to an api that consumes exactly what decrypt_header returns
 bool decrypt_packet(
   uint8_t *out,
   const uint8_t *cypher_packet,
-  uint16_t packet_len,
-  const uint8_t mac[crypto_secretbox_MACBYTES],
+  const BS_Plain_Header *plain_header,
   const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
   nonce_inc(nonce);
 
-  if (crypto_secretbox_open_detached(out, cypher_packet, mac, packet_len, nonce, decryption_key) == -1) {
+  if (crypto_secretbox_open_detached(out, cypher_packet, plain_header->packet_mac, plain_header->packet_len, nonce, decryption_key) == -1) {
     return false;
   }
 
