@@ -15,7 +15,6 @@
 //   printf("\n");
 // }
 
-// TODO will these be used by multiple functions?
 static uint8_t encryption_key[crypto_secretbox_KEYBYTES];
 static uint8_t decryption_key[crypto_secretbox_KEYBYTES];
 
@@ -66,12 +65,12 @@ void test_decryption()
 
   assert(decrypt_header(&plain_header, header1, decryption_key, decryption_nonce) == true);
   assert(is_final_header(&plain_header) == false);
-  decrypt_packet(plain, packet1, &plain_header, decryption_key, decryption_nonce);
+  assert(decrypt_packet(plain, packet1, &plain_header, decryption_key, decryption_nonce) == true);
   assert(memcmp(plain, expected_plain1, sizeof(expected_plain1)) == 0);
 
   assert(decrypt_header(&plain_header, header2, decryption_key, decryption_nonce) == true);
   assert(is_final_header(&plain_header) == false);
-  decrypt_packet(plain, packet2, &plain_header, decryption_key, decryption_nonce);
+  assert(decrypt_packet(plain, packet2, &plain_header, decryption_key, decryption_nonce) == true);
   assert(memcmp(plain, expected_plain2, sizeof(expected_plain2)) == 0);
 
   assert(decrypt_header(&plain_header, final_header, decryption_key, decryption_nonce) == true);
@@ -94,12 +93,12 @@ void test_inplace_decryption()
 
   assert(decrypt_header_inplace(header1, decryption_key, decryption_nonce) == true);
   assert(is_final_header((BS_Plain_Header*)header1) == false);
-  decrypt_packet_inplace(packet1, (BS_Plain_Header*)header1, decryption_key, decryption_nonce);
+  assert(decrypt_packet_inplace(packet1, (BS_Plain_Header*)header1, decryption_key, decryption_nonce) == true);
   assert(memcmp(packet1, expected_plain1, sizeof(expected_plain1)) == 0);
 
   assert(decrypt_header_inplace(header2, decryption_key, decryption_nonce) == true);
   assert(is_final_header((BS_Plain_Header*)header2) == false);
-  decrypt_packet_inplace(packet2, (BS_Plain_Header*)header2, decryption_key, decryption_nonce);
+  assert(decrypt_packet_inplace(packet2, (BS_Plain_Header*)header2, decryption_key, decryption_nonce) == true);
   assert(memcmp(packet2, expected_plain2, sizeof(expected_plain2)) == 0);
 
   assert(decrypt_header_inplace(final_header, decryption_key, decryption_nonce) == true);
@@ -134,6 +133,38 @@ void test_nounce_boundaries()
   }
 }
 
+void test_invalid_header_decrypt()
+{
+  uint8_t cypher_header[BS_CYPHER_HEADER_SIZE];
+  randombytes_buf(cypher_header, sizeof(cypher_header));
+
+  uint8_t decryption_key[crypto_secretbox_KEYBYTES];
+  randombytes_buf(decryption_key, sizeof(decryption_key));
+
+  uint8_t decryption_nonce[crypto_secretbox_NONCEBYTES];
+  randombytes_buf(decryption_nonce, sizeof(decryption_nonce));
+
+  BS_Plain_Header plain_header;
+
+  assert(decrypt_header(&plain_header, cypher_header, decryption_key, decryption_nonce) == false);
+  assert(decrypt_header_inplace(cypher_header, decryption_key, decryption_nonce) == false);
+}
+
+void test_invalid_packet_decrypt()
+{
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES] = {162,29,153,150,123,225,10,173,175,201,160,34,190,179,158,14,176,105,232,238,97,66,133,194,250,148,199,7,34,157,174,24};
+  uint8_t decryption_nonce[crypto_secretbox_NONCEBYTES] = {44,140,79,227,23,153,202,203,81,40,114,59,56,167,63,166,201,9,50,152,0,255,226,147};
+
+  const uint8_t header1[BS_CYPHER_HEADER_SIZE] = {181,28,106,117,226,186,113,206,135,153,250,54,221,225,178,211,144,190,14,102,102,246,118,54,195,34,174,182,190,45,129,48,96,193};
+  uint8_t packet1[8] = {0,0,0,0,113,173,5,158};
+
+  BS_Plain_Header plain_header;
+
+  assert(decrypt_header(&plain_header, header1, decryption_key, decryption_nonce) == true);
+  assert(is_final_header(&plain_header) == false);
+  assert(decrypt_packet_inplace(packet1, &plain_header, decryption_key, decryption_nonce) == false);
+}
+
 int main()
 {
   assert(sodium_init() != -1);
@@ -145,10 +176,8 @@ int main()
   test_decryption();
   test_inplace_decryption();
   test_nounce_boundaries();
-  // test_final_header();
-  // test_invalid_header_decrypt();
-  // test_invalid_packet_decrypt();
+  test_invalid_header_decrypt();
+  test_invalid_packet_decrypt();
 
   printf("%s\n", "foo");
 }
- // TODO implement missing tests
