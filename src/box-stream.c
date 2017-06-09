@@ -8,15 +8,6 @@
 
 static uint8_t zeros[sizeof(uint16_t) + crypto_secretbox_MACBYTES];
 
-// static void print_hex(void *mem, int size) {
-//   int i;
-//   unsigned char *p = (unsigned char *)mem;
-//   for (i=0;i<size;i++) {
-//     printf("%02x ", p[i]);
-//   }
-//   printf("\n");
-// }
-
 // wrapping in-place increment of a nonce
 static void nonce_inc(uint8_t *nonce)
 {
@@ -152,5 +143,3 @@ bool bs_decrypt_packet_inplace(
   nonce_inc(nonce);
   return true;
 }
-
-// TODO remove prints

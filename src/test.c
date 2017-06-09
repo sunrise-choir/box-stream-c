@@ -6,15 +6,6 @@
 #include <string.h>
 #include <sodium.h>
 
-// static void print_hex(void *mem, int size) {
-//   int i;
-//   unsigned char *p = (unsigned char *)mem;
-//   for (i=0;i<size;i++) {
-//     printf("%02x ", p[i]);
-//   }
-//   printf("\n");
-// }
-
 static uint8_t encryption_key[crypto_secretbox_KEYBYTES];
 static uint8_t decryption_key[crypto_secretbox_KEYBYTES];
 
@@ -178,6 +169,4 @@ int main()
   test_nounce_boundaries();
   test_invalid_header_decrypt();
   test_invalid_packet_decrypt();
-
-  printf("%s\n", "foo");
 }
