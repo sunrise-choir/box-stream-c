@@ -103,6 +103,21 @@ bool decrypt_header(
   return true;
 }
 
+bool decrypt_header_inplace(
+  uint8_t cypher_header[BS_CYPHER_HEADER_SIZE],
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
+)
+{
+  if (crypto_secretbox_open_easy(cypher_header, cypher_header, BS_CYPHER_HEADER_SIZE, nonce, decryption_key) == -1) {
+    return false;
+  }
+
+  BS_Plain_Header *plain_header = (BS_Plain_Header*) cypher_header;
+  plain_header->packet_len = ntohs(*(uint16_t *)cypher_header);
+  return true;
+}
+
 bool decrypt_packet(
   uint8_t *out,
   const uint8_t *cypher_packet,
@@ -114,6 +129,23 @@ bool decrypt_packet(
   nonce_inc(nonce);
 
   if (crypto_secretbox_open_detached(out, cypher_packet, plain_header->packet_mac, plain_header->packet_len, nonce, decryption_key) == -1) {
+    return false;
+  }
+
+  nonce_inc(nonce);
+  return true;
+}
+
+bool decrypt_packet_inplace(
+  uint8_t *cypher_packet,
+  const BS_Plain_Header *plain_header,
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
+  uint8_t nonce[crypto_secretbox_NONCEBYTES]
+)
+{
+  nonce_inc(nonce);
+
+  if (crypto_secretbox_open_detached(cypher_packet, cypher_packet, plain_header->packet_mac, plain_header->packet_len, nonce, decryption_key) == -1) {
     return false;
   }
 
