@@ -59,7 +59,7 @@ bool bs_decrypt_packet(
   uint8_t *out, // length: cypher_packet->packet_len
   const uint8_t *cypher_packet, // the packet to decrypt
   const BS_Plain_Header *plain_header,
-  const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 );
 
@@ -67,7 +67,7 @@ bool bs_decrypt_packet(
 bool bs_decrypt_packet_inplace(
   uint8_t *cypher_packet,
   const BS_Plain_Header *plain_header,
-  const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
+  const uint8_t decryption_key[crypto_secretbox_KEYBYTES],
   uint8_t nonce[crypto_secretbox_NONCEBYTES]
 );
 
