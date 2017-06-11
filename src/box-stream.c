@@ -68,7 +68,7 @@ void bs_encrypt_packet(
 void bs_final_header(
   uint8_t out[BS_CYPHER_HEADER_SIZE],
   const uint8_t encryption_key[crypto_secretbox_KEYBYTES],
-  uint8_t nonce[crypto_secretbox_NONCEBYTES]
+  const uint8_t nonce[crypto_secretbox_NONCEBYTES]
 )
 {
   crypto_secretbox_easy(out, zeros, sizeof(zeros), nonce, encryption_key);
