@@ -56,11 +56,13 @@ void test_decryption()
 
   assert(bs_decrypt_header(&plain_header, header1, decryption_key, decryption_nonce) == true);
   assert(bs_is_final_header(&plain_header) == false);
+  assert(plain_header.packet_len == 8);
   assert(bs_decrypt_packet(plain, packet1, &plain_header, decryption_key, decryption_nonce) == true);
   assert(memcmp(plain, expected_plain1, sizeof(expected_plain1)) == 0);
 
   assert(bs_decrypt_header(&plain_header, header2, decryption_key, decryption_nonce) == true);
   assert(bs_is_final_header(&plain_header) == false);
+  assert(plain_header.packet_len == 8);
   assert(bs_decrypt_packet(plain, packet2, &plain_header, decryption_key, decryption_nonce) == true);
   assert(memcmp(plain, expected_plain2, sizeof(expected_plain2)) == 0);
 
@@ -84,11 +86,13 @@ void test_inplace_decryption()
 
   assert(bs_decrypt_header_inplace(header1, decryption_key, decryption_nonce) == true);
   assert(bs_is_final_header((BS_Plain_Header*)header1) == false);
+  assert(((BS_Plain_Header*)header1)->packet_len == 8);
   assert(bs_decrypt_packet_inplace(packet1, (BS_Plain_Header*)header1, decryption_key, decryption_nonce) == true);
   assert(memcmp(packet1, expected_plain1, sizeof(expected_plain1)) == 0);
 
   assert(bs_decrypt_header_inplace(header2, decryption_key, decryption_nonce) == true);
   assert(bs_is_final_header((BS_Plain_Header*)header2) == false);
+  assert(((BS_Plain_Header*)header2)->packet_len == 8);
   assert(bs_decrypt_packet_inplace(packet2, (BS_Plain_Header*)header2, decryption_key, decryption_nonce) == true);
   assert(memcmp(packet2, expected_plain2, sizeof(expected_plain2)) == 0);
 
